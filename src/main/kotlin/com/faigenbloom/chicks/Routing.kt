@@ -24,6 +24,11 @@ object DataBases{
 fun Application.configureRouting() {
     val dbs = hashMapOf<String, Database>()
     routing {
+        get("/") {
+                val dir = File(".")
+
+            call.respondText(printProjectTree(dir))
+        }
         get("/{name}/data") {
             val name = call.parameters["name"]!!
             if (dbs[name] == null){
@@ -127,3 +132,19 @@ fun Application.configureRouting() {
     }
 }
 
+fun printProjectTree(dir: File = File("."), indent: String = "") : String {
+    if (!dir.exists()) {
+
+        return "Directory does not exist: ${dir.absolutePath}"
+    }
+
+    val files = dir.listFiles()?.sortedBy { it.name } ?: return ""
+    var res = ""
+    for (file in files) {
+        res += "$indent├── ${file.name}\n"
+        if (file.isDirectory) {
+            res +=  printProjectTree(file, "$indent│   ")
+        }
+    }
+    return res
+}

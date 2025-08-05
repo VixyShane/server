@@ -15,3 +15,4 @@ COPY --from=build /app/build/libs/*.jar app.jar
 
 # Запускаем сервер
 ENTRYPOINT ["java", "-jar", "app.jar"]
+
