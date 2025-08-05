@@ -1,0 +1,9 @@
+ktor:
+  application:
+    modules:
+      - com.faigenbloom.chicks.ApplicationKt.module
+  deployment:
+    port: 8080
+paypal:
+  clientId: AR-1t00DtSpGZqL4kQYLds9uc6sftHEzrrruQSO3aQrmOHmKDDW7dBBsTUchyAgAmSarrJZ22L8JEdKH
+  clientSecret: EFHI4UoMpKA9KNV4Gyg35Mr9Sfjei8USK5TqCeaXPDJojt6yTxqG0Y3lW7eoaFA7x09wPuemZtwaVieT
