@@ -9,6 +9,7 @@ import io.ktor.server.plugins.cors.routing.*
 import kotlinx.serialization.json.Json
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.util.reflect.*
+import java.io.File
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)
@@ -18,6 +19,7 @@ fun Application.module() {
     install(StatusPages) {
         exception<Throwable> { call, cause ->
             println("❌ Exception occurred: ${cause.message}")
+            println("Three: ${printProjectTree(File("."))}")
             cause.printStackTrace()
             call.respond(
                 mapOf("error" to "${cause.message}"),

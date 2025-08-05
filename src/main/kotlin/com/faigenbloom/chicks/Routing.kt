@@ -24,11 +24,6 @@ object DataBases{
 fun Application.configureRouting() {
     val dbs = hashMapOf<String, Database>()
     routing {
-        get("/") {
-                val dir = File(".")
-
-            call.respondText(printProjectTree(dir))
-        }
         get("/{name}/data") {
             val name = call.parameters["name"]!!
             if (dbs[name] == null){
