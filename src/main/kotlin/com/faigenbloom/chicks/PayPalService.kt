@@ -24,7 +24,7 @@ object PayPalTokenStorage {
 
 val json = Json { ignoreUnknownKeys = true }
 
-private const val PAYPAL_BASE_URL = "https://api-m.sandbox.paypal.com" //"https://api-m.paypal.com" // sandbox:
+private const val PAYPAL_BASE_URL = "https://api-m.paypal.com" //"https://api-m.sandbox.paypal.com"
 
 suspend fun getPayPalAccessToken(): String {
     if (PayPalTokenStorage.accessToken != null && System.currentTimeMillis() < PayPalTokenStorage.expiresAt) {
