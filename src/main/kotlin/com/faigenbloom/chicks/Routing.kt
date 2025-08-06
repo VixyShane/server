@@ -11,7 +11,6 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
-import java.io.File
 
 object DataBases {
     val dbs = hashMapOf<String, Database>()
@@ -24,13 +23,14 @@ object DataBases {
 }
 
 fun Application.configureRouting() {
-    val dbs = hashMapOf<String, Database>()
     routing {
+        get("/{name}") {
+            val name = call.parameters["name"]!!
+            DataBases.getDB(name).generateImagesJson()
+            call.respondText("OK")
+        }
         get("/{name}/data") {
             val name = call.parameters["name"]!!
-            if (dbs[name] == null) {
-                dbs[name] = Database(name)
-            }
             call.respond(DataBases.getDB(name).loadBabeData())
         }
         get("/{name}/users/likes/{clientId}") {
@@ -82,18 +82,22 @@ fun Application.configureRouting() {
             val baseImage = DataBases.getDB(name).getImageFile("uploads", fileName)
 
             if (baseImage != null) {
-                call.respondFile(baseImage)
+                call.respondOutputStream(ContentType.Image.Any){baseImage.copyTo(this)}
             } else{
                 if (DataBases.getDB(name).isPhotoBlured(fileName).not() || DataBases.getDB(name).isUserUnlocked(clientId)) {
                     DataBases.getDB(name).getImageFile("uploads/images", fileName)?.let {
-                        call.respondFile(it)
+                        call.respondOutputStream(ContentType.Image.Any){it.copyTo(this)}
                     } ?: call.respond(HttpStatusCode.NotFound)
                 } else{
                     DataBases.getDB(name).getImageFile("uploads/blurred", fileName)?.let {
-                        call.respondFile(it)
+                        call.respondOutputStream(ContentType.Image.Any){it.copyTo(this)}
                     } ?: run {
                         DataBases.getDB(name).getImageFile("uploads/images", fileName)?.let {
-                            call.respondFile(DataBases.getDB(name).blurImage(it))
+                            call.respondOutputStream(ContentType.Image.Any){
+                                val tempFile = kotlin.io.path.createTempFile().toFile()
+                                it.use { it.copyTo(tempFile.outputStream()) }
+                                call.respondFile(DataBases.getDB(name).blurImage(tempFile))
+                            }
                         }?:call.respond(HttpStatusCode.NotFound)
                     }
                 }
@@ -116,21 +120,4 @@ fun Application.configureRouting() {
             }
         }
     }
-}
-
-fun printProjectTree(dir: File = File("."), indent: String = ""): String {
-    if (!dir.exists()) {
-
-        return "Directory does not exist: ${dir.absolutePath}"
-    }
-
-    val files = dir.listFiles()?.sortedBy { it.name } ?: return ""
-    var res = ""
-    for (file in files) {
-        res += "$indent├── ${file.name}\n"
-        if (file.isDirectory) {
-            res += printProjectTree(file, "$indent│   ")
-        }
-    }
-    return res
 }

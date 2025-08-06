@@ -2,22 +2,28 @@ package com.faigenbloom.chicks
 
 import com.example.models.BabeData
 import com.example.models.BlurConfig
-import com.faigenbloom.chicks.models.PaymentData
 import com.example.models.VideoConfig
 import com.faigenbloom.chicks.models.Likes
+import com.faigenbloom.chicks.models.PaymentData
 import com.faigenbloom.chicks.models.UserPayment
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.request.*
 import kotlinx.serialization.json.Json
 import verifyPayPalOrder
 import java.awt.image.BufferedImage
 import java.awt.image.ConvolveOp
 import java.awt.image.Kernel
 import java.io.File
+import java.io.InputStream
 import javax.imageio.ImageIO
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.collections.List
+import kotlin.collections.arrayListOf
+import kotlin.collections.contains
+import kotlin.collections.emptyList
+import kotlin.collections.filter
+import kotlin.collections.listOf
+import kotlin.collections.map
+import kotlin.collections.set
 
 class Database(private val prefix: String) {
     val blurConfig = loadBlurConfig()
@@ -118,28 +124,17 @@ class Database(private val prefix: String) {
 
 
     fun getImagesList(): List<String> {
-
-        val resourcePath = "$prefix/uploads/images"
-
-        val resourceUrl = this::class.java.classLoader.getResource(resourcePath)
-
-        val uri = resourceUrl.toURI()
-        val imageDir = File(uri)
-
-        val images = imageDir.listFiles()
-            ?.filter { it.isFile }
-            ?.map { it.name }
-
-      return images ?: emptyList()
+        return Json.decodeFromString(getFile("images.json"))
     }
-    fun getFile(name:String): String {
-    return this::class.java.classLoader
-        .getResource("$prefix/$name")
-        ?.readText() ?: ""
-}
-    fun getImageFile(path:String, name:String): File? {
-        val resourceUrl = this::class.java.classLoader.getResource("$prefix/$path/$name")
-        return resourceUrl?.let{File(it.toURI())}
+
+    fun getFile(name: String): String {
+        return this::class.java.classLoader
+            .getResource("$prefix/$name")
+            ?.readText() ?: ""
+    }
+
+    fun getImageFile(path: String, name: String): InputStream? {
+        return this::class.java.classLoader.getResourceAsStream("$prefix/$path/$name")
     }
 
     private fun loadBlurConfig(): BlurConfig {
@@ -162,7 +157,7 @@ class Database(private val prefix: String) {
         }
     }
 
-   fun getVideoFromPhoto(name: String, fileName: String): String {
+    fun getVideoFromPhoto(name: String, fileName: String): String {
         return "https://$name.com/files/videos/${videosList[fileName]}"
     }
 
@@ -181,5 +176,22 @@ class Database(private val prefix: String) {
 
     fun loadBabeData(): BabeData {
         return Json.decodeFromString<BabeData>(getFile("babe-config.json"))
+    }
+
+    fun generateImagesJson() {
+        val imageDir = File("src/main/resources/$prefix/uploads/images")
+        if (!imageDir.exists()) {
+            println("❌ Папка не найдена: ${imageDir.absolutePath}")
+            return
+        }
+
+        val imageNames = imageDir.listFiles()
+            ?.filter { it.isFile }
+            ?.map { it.name }
+            ?: emptyList()
+
+        val jsonOutput = Json.encodeToString(imageNames)
+
+        File("src/main/resources/$prefix/images.json").writeText(jsonOutput)
     }
 }
