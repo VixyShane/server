@@ -12,21 +12,23 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import java.io.File
-object DataBases{
+
+object DataBases {
     val dbs = hashMapOf<String, Database>()
     fun getDB(name: String): Database {
-        if (dbs[name] == null){
+        if (dbs[name] == null) {
             dbs[name] = Database(name)
         }
         return dbs[name]!!
     }
 }
+
 fun Application.configureRouting() {
     val dbs = hashMapOf<String, Database>()
     routing {
         get("/{name}/data") {
             val name = call.parameters["name"]!!
-            if (dbs[name] == null){
+            if (dbs[name] == null) {
                 dbs[name] = Database(name)
             }
             call.respond(DataBases.getDB(name).loadBabeData())
@@ -44,7 +46,7 @@ fun Application.configureRouting() {
             val payment = call.receive<PaymentData>()
             if (DataBases.getDB(name).checkPayment(clientId, payment)) {
                 call.respond(HttpStatusCode.OK, "{\"success\": true}")
-            } else{
+            } else {
                 call.respond(HttpStatusCode.NotFound)
             }
         }
@@ -65,12 +67,7 @@ fun Application.configureRouting() {
         }
         get("/{name}/images") {
             val name = call.parameters["name"]!!
-            val imageDir = File("$name/uploads/images")
-            val images = imageDir.listFiles()
-                ?.filter { it.isFile }
-                ?.map { it.name }
-
-            call.respond(images ?: emptyList())
+            call.respond(DataBases.getDB(name).getImagesList())
         }
         get("/{name}/videos") {
             val name = call.parameters["name"]!!
@@ -82,29 +79,23 @@ fun Application.configureRouting() {
             val name = call.parameters["name"]!!
             val clientId = call.parameters["clientId"]!!
             val fileName = call.parameters["fileName"]!!
+            val baseImage = DataBases.getDB(name).getImageFile("uploads", fileName)
 
-            val file = File("$name/uploads/images/$fileName")
-
-            if (!file.exists()) {
-                val file2 = File("$name/uploads/$fileName")
-                if (!file2.exists()) {
-                    call.respond(HttpStatusCode.NotFound)
-                } else {
-                    call.respondFile(file2)
-                }
-            } else {
-                if (DataBases.getDB(name).isUserUnlocked(clientId)) {
-                    call.respondFile(file)
-                } else if (DataBases.getDB(name).isPhotoBlured(fileName)) {
-
-                    val bluredFile = File("$name/uploads/blurred/$fileName")
-                    if (bluredFile.exists()) {
-                        call.respondFile(bluredFile)
-                    } else {
-                        call.respondFile(DataBases.getDB(name).blurImage(file))
+            if (baseImage != null) {
+                call.respondFile(baseImage)
+            } else{
+                if (DataBases.getDB(name).isPhotoBlured(fileName).not() || DataBases.getDB(name).isUserUnlocked(clientId)) {
+                    DataBases.getDB(name).getImageFile("uploads/images", fileName)?.let {
+                        call.respondFile(it)
+                    } ?: call.respond(HttpStatusCode.NotFound)
+                } else{
+                    DataBases.getDB(name).getImageFile("uploads/blurred", fileName)?.let {
+                        call.respondFile(it)
+                    } ?: run {
+                        DataBases.getDB(name).getImageFile("uploads/images", fileName)?.let {
+                            call.respondFile(DataBases.getDB(name).blurImage(it))
+                        }?:call.respond(HttpStatusCode.NotFound)
                     }
-                } else {
-                    call.respondFile(file)
                 }
             }
         }
@@ -127,7 +118,7 @@ fun Application.configureRouting() {
     }
 }
 
-fun printProjectTree(dir: File = File("."), indent: String = "") : String {
+fun printProjectTree(dir: File = File("."), indent: String = ""): String {
     if (!dir.exists()) {
 
         return "Directory does not exist: ${dir.absolutePath}"
@@ -138,7 +129,7 @@ fun printProjectTree(dir: File = File("."), indent: String = "") : String {
     for (file in files) {
         res += "$indent├── ${file.name}\n"
         if (file.isDirectory) {
-            res +=  printProjectTree(file, "$indent│   ")
+            res += printProjectTree(file, "$indent│   ")
         }
     }
     return res

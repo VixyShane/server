@@ -19,7 +19,6 @@ fun Application.module() {
     install(StatusPages) {
         exception<Throwable> { call, cause ->
             println("❌ Exception occurred: ${cause.message}")
-            println("Three: ${printProjectTree(File("."))}")
             cause.printStackTrace()
             call.respond(
                 mapOf("error" to "${cause.message}"),

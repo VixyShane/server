@@ -116,13 +116,39 @@ class Database(private val prefix: String) {
         return blurConfig.blur.contains(fileName)
     }
 
+
+    fun getImagesList(): List<String> {
+
+        val resourcePath = "$prefix/uploads/images"
+
+        val resourceUrl = this::class.java.classLoader.getResource(resourcePath)
+
+        val uri = resourceUrl.toURI()
+        val imageDir = File(uri)
+
+        val images = imageDir.listFiles()
+            ?.filter { it.isFile }
+            ?.map { it.name }
+
+      return images ?: emptyList()
+    }
+    fun getFile(name:String): String {
+    return this::class.java.classLoader
+        .getResource("$prefix/$name")
+        ?.readText() ?: ""
+}
+    fun getImageFile(path:String, name:String): File? {
+        val resourceUrl = this::class.java.classLoader.getResource("$prefix/$path/$name")
+        return resourceUrl?.let{File(it.toURI())}
+    }
+
     private fun loadBlurConfig(): BlurConfig {
-        return Json.decodeFromString(File("$prefix/blur-config.json").readText())
+        return Json.decodeFromString(getFile("blur-config.json"))
     }
 
     fun getVideosList(): VideoConfig {
         if (videosList.isEmpty()) {
-            val videoConfig = Json.decodeFromString<VideoConfig>(File("$prefix/video-config.json").readText())
+            val videoConfig = Json.decodeFromString<VideoConfig>(getFile("video-config.json"))
             videosList.putAll(videoConfig.videos)
         }
         return VideoConfig(videosList)
@@ -154,6 +180,6 @@ class Database(private val prefix: String) {
     }
 
     fun loadBabeData(): BabeData {
-        return Json.decodeFromString<BabeData>(File("$prefix/babe-config.json").readText())
+        return Json.decodeFromString<BabeData>(getFile("babe-config.json"))
     }
 }
