@@ -1,37 +1,25 @@
 package com.faigenbloom.chicks
 
-import com.example.models.BabeData
-import com.example.models.BlurConfig
-import com.example.models.VideoConfig
+import com.example.models.BabeConfig
+import com.faigenbloom.chicks.models.DownloadsConfig
 import com.faigenbloom.chicks.models.Likes
 import com.faigenbloom.chicks.models.PaymentData
 import com.faigenbloom.chicks.models.UserPayment
 import kotlinx.serialization.json.Json
-import verifyPayPalOrder
-import java.awt.image.BufferedImage
-import java.awt.image.ConvolveOp
-import java.awt.image.Kernel
 import java.io.File
-import java.io.InputStream
-import javax.imageio.ImageIO
-import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
-import kotlin.collections.List
-import kotlin.collections.arrayListOf
-import kotlin.collections.contains
-import kotlin.collections.emptyList
-import kotlin.collections.filter
-import kotlin.collections.listOf
-import kotlin.collections.map
 import kotlin.collections.set
 
 class Database(private val prefix: String) {
-    val blurConfig = loadBlurConfig()
-    val tempFiles = HashMap<File, File?>()
     val liked = HashMap<String, ArrayList<String>>()
-    val videosList = HashMap<String, String>()
     val payedUsers = ArrayList<String>()
+    val downloadsConfig: DownloadsConfig
+    val babeConfig: BabeConfig
     val json = Json { ignoreUnknownKeys = true }
+
+    init {
+        downloadsConfig = Json.decodeFromString<DownloadsConfig>(getFile("downloads-config.json"))
+        babeConfig = Json.decodeFromString<BabeConfig>(getFile("babe-config.json"))
+    }
 
     fun getLiked(userId: String, girlName: String): ArrayList<String> {
         if (liked.contains(userId)) {
@@ -65,7 +53,7 @@ class Database(private val prefix: String) {
         }
     }
 
-    fun isUserUnlocked(userId: String): Boolean {
+    private fun isUserUnlocked(userId: String): Boolean {
         return payedUsers.contains(userId) || run {
             val sringFromStore = SimpleStore.get(userId)
             if (!sringFromStore.isNullOrBlank()) {
@@ -80,85 +68,51 @@ class Database(private val prefix: String) {
         }
     }
 
-    fun blurImage(file: File): File {
-        return tempFiles[file] ?: run {
-            val image = ImageIO.read(file)
-            var blurred = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
-            val gaussian11x11 = floatArrayOf(
-                0.00000067f, 0.00002292f, 0.00019117f, 0.00038771f, 0.00019117f, 0.00002292f, 0.00000067f,
-                0.00002292f, 0.00078634f, 0.00655601f, 0.01330373f, 0.00655601f, 0.00078634f, 0.00002292f,
-                0.00019117f, 0.00655601f, 0.05472157f, 0.11153763f, 0.05472157f, 0.00655601f, 0.00019117f,
-                0.00038771f, 0.01330373f, 0.11153763f, 0.22793469f, 0.11153763f, 0.01330373f, 0.00038771f,
-                0.00019117f, 0.00655601f, 0.05472157f, 0.11153763f, 0.05472157f, 0.00655601f, 0.00019117f,
-                0.00002292f, 0.00078634f, 0.00655601f, 0.01330373f, 0.00655601f, 0.00078634f, 0.00002292f,
-                0.00000067f, 0.00002292f, 0.00019117f, 0.00038771f, 0.00019117f, 0.00002292f, 0.00000067f
-            )
-
-            val op = ConvolveOp(Kernel(7, 7, gaussian11x11), ConvolveOp.EDGE_NO_OP, null)
-            op.filter(image, blurred)
-            repeat(100) {
-                val temp = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
-                op.filter(blurred, temp)
-                blurred = temp
-            }
-            val tempFile = File.createTempFile("blurred_${file.path}", ".png")
-            ImageIO.write(blurred, "png", tempFile)
-            tempFiles[file] = tempFile
-            val outputDir = File("C:\\Users\\Kostiantyn\\IdeaProjects\\PS\\$prefix\\uploads\\blurred")
-            outputDir.mkdir()
-            val outputFile = File(outputDir, file.name)
-            outputFile.createNewFile()
-
-            ImageIO.write(blurred, "png", outputFile)
-            tempFile
-        }
-    }
-
-    fun isPhotoBlured(fileName: String): Boolean {
-        if (fileName == "horizontal.png" || fileName == "fab.png" || fileName == "fab2.png") {
-            return false
-        }
-
-        return blurConfig.blur.contains(fileName)
-    }
-
-
     fun getImagesList(): List<String> {
-        return Json.decodeFromString(getFile("images.json"))
+        return downloadsConfig.items.map { it.id }
     }
 
-    fun getFile(name: String): String {
+    private fun getFile(name: String): String {
         return this::class.java.classLoader
             .getResource("$prefix/$name")
             ?.readText() ?: ""
     }
 
-    fun getImageFile(path: String, name: String): InputStream? {
-        return this::class.java.classLoader.getResourceAsStream("$prefix/$path/$name")
-    }
-
-    private fun loadBlurConfig(): BlurConfig {
-        return Json.decodeFromString(getFile("blur-config.json"))
-    }
-
-    fun getVideosList(): VideoConfig {
-        if (videosList.isEmpty()) {
-            val videoConfig = Json.decodeFromString<VideoConfig>(getFile("video-config.json"))
-            videosList.putAll(videoConfig.videos)
+    fun getImageLink(fileName: String, userId: String): String {
+        return if (fileName == "horizontal.png" || fileName == "fab.png" || fileName == "fab2.png") {
+            "${babeConfig.domain}/uploads/$fileName"
+        } else {
+            val config = downloadsConfig.items.first { it.id == fileName }
+            if (config.blurred.isNotBlank() && isUserUnlocked(userId).not()) {
+                config.getBlurredAsUrl(babeConfig.domain)
+            } else {
+                config.getOpenAsUrl(babeConfig.domain)
+            }
         }
-        return VideoConfig(videosList)
+    }
+
+    fun getVideosList(): Map<String, String> {
+        val map = HashMap<String, String>()
+
+        downloadsConfig.items.forEach { if (it.video.isNotBlank()) map[it.id] = it.video }
+        return map
     }
 
     fun getBlocked(clientId: String): List<String> {
         return if (isUserUnlocked(clientId)) {
             return listOf()
         } else {
-            blurConfig.blur
+            downloadsConfig.items.mapNotNull { if (it.blurred.isNotBlank()) it.id else null }
         }
     }
 
-    fun getVideoFromPhoto(name: String, fileName: String): String {
-        return "https://$name.com/files/videos/${videosList[fileName]}"
+    fun getVideoFromPhoto(userId: String, fileName: String): String {
+        val config = downloadsConfig.items.first { it.id == fileName }
+        return if (config.blurred.isNotBlank() && isUserUnlocked(userId).not()) {
+            ""
+        } else {
+            config.getVideoAsUrl(babeConfig.domain)
+        }
     }
 
     suspend fun checkPayment(clientId: String, payment: PaymentData): Boolean {
@@ -174,24 +128,7 @@ class Database(private val prefix: String) {
         return isValid
     }
 
-    fun loadBabeData(): BabeData {
-        return Json.decodeFromString<BabeData>(getFile("babe-config.json"))
-    }
-
-    fun generateImagesJson() {
-        val imageDir = File("src/main/resources/$prefix/uploads/images")
-        if (!imageDir.exists()) {
-            println("❌ Папка не найдена: ${imageDir.absolutePath}")
-            return
-        }
-
-        val imageNames = imageDir.listFiles()
-            ?.filter { it.isFile }
-            ?.map { it.name }
-            ?: emptyList()
-
-        val jsonOutput = Json.encodeToString(imageNames)
-
-        File("src/main/resources/$prefix/images.json").writeText(jsonOutput)
+    fun loadBabeData(): BabeConfig {
+        return babeConfig
     }
 }

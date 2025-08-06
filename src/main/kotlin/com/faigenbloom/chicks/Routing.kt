@@ -1,16 +1,13 @@
 package com.faigenbloom.chicks
 
 import com.faigenbloom.chicks.models.PaymentData
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.utils.io.*
+import kotlin.collections.hashMapOf
+import kotlin.collections.set
 
 object DataBases {
     val dbs = hashMapOf<String, Database>()
@@ -24,11 +21,6 @@ object DataBases {
 
 fun Application.configureRouting() {
     routing {
-        get("/{name}") {
-            val name = call.parameters["name"]!!
-            DataBases.getDB(name).generateImagesJson()
-            call.respondText("OK")
-        }
         get("/{name}/data") {
             val name = call.parameters["name"]!!
             call.respond(DataBases.getDB(name).loadBabeData())
@@ -79,29 +71,8 @@ fun Application.configureRouting() {
             val name = call.parameters["name"]!!
             val clientId = call.parameters["clientId"]!!
             val fileName = call.parameters["fileName"]!!
-            val baseImage = DataBases.getDB(name).getImageFile("uploads", fileName)
 
-            if (baseImage != null) {
-                call.respondOutputStream(ContentType.Image.Any){baseImage.copyTo(this)}
-            } else{
-                if (DataBases.getDB(name).isPhotoBlured(fileName).not() || DataBases.getDB(name).isUserUnlocked(clientId)) {
-                    DataBases.getDB(name).getImageFile("uploads/images", fileName)?.let {
-                        call.respondOutputStream(ContentType.Image.Any){it.copyTo(this)}
-                    } ?: call.respond(HttpStatusCode.NotFound)
-                } else{
-                    DataBases.getDB(name).getImageFile("uploads/blurred", fileName)?.let {
-                        call.respondOutputStream(ContentType.Image.Any){it.copyTo(this)}
-                    } ?: run {
-                        DataBases.getDB(name).getImageFile("uploads/images", fileName)?.let {
-                            call.respondOutputStream(ContentType.Image.Any){
-                                val tempFile = kotlin.io.path.createTempFile().toFile()
-                                it.use { it.copyTo(tempFile.outputStream()) }
-                                call.respondFile(DataBases.getDB(name).blurImage(tempFile))
-                            }
-                        }?:call.respond(HttpStatusCode.NotFound)
-                    }
-                }
-            }
+            call.respondRedirect(DataBases.getDB(name).getImageLink(fileName, clientId))
         }
         get("/{name}/uploads/videos/{fileName}/{clientId}") {
 
@@ -109,26 +80,8 @@ fun Application.configureRouting() {
             val clientId = call.parameters["clientId"]!!
             val fileName = call.parameters["fileName"]!!
 
-            if (
-                DataBases.getDB(name).isUserUnlocked(clientId) ||
-                !DataBases.getDB(name).isPhotoBlured(fileName)
-            ) {
-                val client = HttpClient(CIO)
+            call.respondRedirect(DataBases.getDB(name).getVideoFromPhoto(clientId, fileName))
 
-                try {
-                    val response = client.get(DataBases.getDB(name).getVideoFromPhoto(name, fileName))
-
-                    call.respondBytesWriter(
-                        contentType = response.contentType() ?: ContentType.Application.OctetStream
-                    ) {
-                        response.bodyAsChannel().copyTo(this)
-                    }
-                } finally {
-                    client.close() // 🔥 ОБЯЗАТЕЛЬНО, чтобы не утекала память
-                }
-            } else {
-                call.respond(HttpStatusCode.NotFound)
-            }
         }
     }
 }
