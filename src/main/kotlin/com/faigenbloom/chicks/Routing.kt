@@ -109,11 +109,22 @@ fun Application.configureRouting() {
             val clientId = call.parameters["clientId"]!!
             val fileName = call.parameters["fileName"]!!
 
-            if (DataBases.getDB(name).isUserUnlocked(clientId) || !DataBases.getDB(name).isPhotoBlured(fileName)) {
+            if (
+                DataBases.getDB(name).isUserUnlocked(clientId) ||
+                !DataBases.getDB(name).isPhotoBlured(fileName)
+            ) {
                 val client = HttpClient(CIO)
-                val response = client.get(DataBases.getDB(name).getVideoFromPhoto(name, fileName))
-                call.respondBytesWriter(contentType = response.contentType() ?: ContentType.Application.OctetStream) {
-                    response.bodyAsChannel().copyTo(this)
+
+                try {
+                    val response = client.get(DataBases.getDB(name).getVideoFromPhoto(name, fileName))
+
+                    call.respondBytesWriter(
+                        contentType = response.contentType() ?: ContentType.Application.OctetStream
+                    ) {
+                        response.bodyAsChannel().copyTo(this)
+                    }
+                } finally {
+                    client.close() // 🔥 ОБЯЗАТЕЛЬНО, чтобы не утекала память
                 }
             } else {
                 call.respond(HttpStatusCode.NotFound)
